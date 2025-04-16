@@ -17,7 +17,6 @@ export function createKeywordParam(required: boolean = true): ParameterDefinitio
     type: 'string',
     description: 'Keyword or phrase to analyze (e.g., "digital marketing", "seo tools"). IMPORTANT: Must be a single string, not an array. Use specific, targeted phrases for best results. Do not include special characters or excessive punctuation.',
     required,
-    aliases: ['phrase', 'query'],
     transform: transformations.lowercase,
     minLength: 2,
     maxLength: 80
@@ -116,7 +115,16 @@ export function createDomainsArrayParam(maxItems: number = 5, required: boolean 
       type: 'string',
       description: 'Domain to analyze (e.g., "semrush.com", "ahrefs.com")'
     },
-    transform: transformations.arrayToCommaString
+    transform: (value: any) => {
+      // Handle both string array and comma-separated string
+      if (typeof value === 'string') {
+        return value.split(',').map((d: string) => transformations.formatDomain(d.trim()));
+      }
+      if (Array.isArray(value)) {
+        return value.map((d: string) => transformations.formatDomain(d));
+      }
+      return value;
+    }
   };
 }
 
@@ -137,6 +145,12 @@ export function createKeywordsArrayParam(maxItems: number = 100, required: boole
       type: 'string',
       description: 'Keyword to analyze (e.g., "digital marketing", "seo tools")'
     },
-    transform: transformations.arrayToCommaString
+    transform: (value: any) => {
+      // Handle both string array and comma-separated string
+      if (typeof value === 'string') {
+        return value.split(/[;,]/).map((k: string) => k.trim());
+      }
+      return Array.isArray(value) ? value : [value];
+    }
   };
 }

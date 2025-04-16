@@ -20,11 +20,11 @@ This guide provides examples of correct usage for each Semrush MCP tool.
 
 ### Competitors Mode
 
-#### domain_organic_organic
+#### domain_competitors
 ```json
 {
   "mode": "competitors",
-  "tool": "domain_organic_organic",
+  "tool": "domain_competitors",
   "params": {
     "domain": "example.com",
     "database": "us",
@@ -41,11 +41,14 @@ This guide provides examples of correct usage for each Semrush MCP tool.
   "mode": "traffic",
   "tool": "traffic_summary",
   "params": {
-    "domains": ["example.com", "competitor.com"],
-    "country": "us"
+    "targets": ["example.com", "competitor.com"],
+    "country": "us",
+    "display_date": "2024-03-01"
   }
 }
 ```
+
+> **Note**: This tool may require an additional subscription from Semrush. If you receive a 400 error, check your subscription level.
 
 #### traffic_sources
 ```json
@@ -53,11 +56,15 @@ This guide provides examples of correct usage for each Semrush MCP tool.
   "mode": "traffic",
   "tool": "traffic_sources",
   "params": {
-    "domain": "example.com",
-    "country": "us"
+    "target": "example.com",
+    "country": "us",
+    "display_date": "2024-03-01",
+    "limit": 10
   }
 }
 ```
+
+> **Note**: This tool may require an additional subscription from Semrush. If you receive a 400 error, check your subscription level.
 
 ### Backlinks Mode
 
@@ -128,6 +135,8 @@ This guide provides examples of correct usage for each Semrush MCP tool.
 }
 ```
 
+> **Note**: This tool was previously called `keyword_suggestions` in some documentation.
+
 #### broad_match_keywords
 ```json
 {
@@ -160,7 +169,7 @@ This guide provides examples of correct usage for each Semrush MCP tool.
   "mode": "research",
   "tool": "keyword_difficulty",
   "params": {
-    "phrase": ["digital marketing", "seo tools", "content marketing"],
+    "keywords": ["digital marketing", "seo tools", "content marketing"],
     "database": "us"
   }
 }
@@ -180,6 +189,8 @@ This guide provides examples of correct usage for each Semrush MCP tool.
   }
 }
 ```
+
+> **Note**: The correct tool name is `domain_organic_keywords`, not `domain_organic`.
 
 #### domain_paid_keywords
 ```json
@@ -203,17 +214,21 @@ This guide provides examples of correct usage for each Semrush MCP tool.
   - ❌ `"domain": "https://example.com"`
   - ❌ `"domain": ["example.com"]`
 
-- **domains**: An array of domain strings
-  - ✅ `"domains": ["example.com", "competitor.com"]`
-  - ❌ `"domains": "example.com"`
+- **targets**: An array of domain strings (for traffic_summary)
+  - ✅ `"targets": ["example.com", "competitor.com"]`
+  - ❌ `"targets": "example.com"` (common error)
+
+- **target**: A single domain string (for traffic_sources and backlinks)
+  - ✅ `"target": "example.com"`
+  - ❌ `"target": ["example.com"]`
 
 - **keyword**: A single keyword string
   - ✅ `"keyword": "digital marketing"`
   - ❌ `"keyword": ["digital marketing"]`
 
-- **phrase**: An array of keyword strings
-  - ✅ `"phrase": ["digital marketing", "seo tools"]`
-  - ❌ `"phrase": "digital marketing"`
+- **keywords**: An array of keyword strings (for batch tools)
+  - ✅ `"keywords": ["digital marketing", "seo tools"]`
+  - ❌ `"keywords": "digital marketing"`
 
 - **database**: A two-letter country code string
   - ✅ `"database": "us"`
@@ -231,4 +246,5 @@ This guide provides examples of correct usage for each Semrush MCP tool.
 
 - **Traffic Mode**: Uses `country` parameter, not `database`
 - **Backlinks Mode**: Uses `target` parameter for domain/URL
-- **Research Mode**: `keyword_difficulty` requires array in `phrase` parameter
+- **Research Mode**: `keyword_difficulty` requires array in `keywords` parameter
+- **Domain Keywords Mode**: Uses `domain_organic_keywords`, not `domain_organic`

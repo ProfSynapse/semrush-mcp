@@ -5,7 +5,7 @@ import { config, logger } from './config.js';
 // Base API URLs
 const SEMRUSH_API_BASE_URL = 'https://api.semrush.com/';
 const BACKLINKS_API_BASE_URL = 'https://api.semrush.com/analytics/v1/';
-const TRENDS_API_BASE_URL = 'https://api.semrush.com/analytics/ta/';
+const TRENDS_API_BASE_URL = 'https://api.semrush.com/analytics/ta/api/v3/';
 
 // Create a cache with TTL from config
 const apiCache = new NodeCache({ stdTTL: config.API_CACHE_TTL_SECONDS });
@@ -491,13 +491,24 @@ export class SemrushApiClient {
     return this.makeRequest(BACKLINKS_API_BASE_URL, params);
   }
   
+  // Helper method for date formatting
+  private formatDate(date: Date = new Date()): string {
+    // Get previous month (API requires data from previous month at latest)
+    const prevMonth = new Date(date);
+    prevMonth.setMonth(prevMonth.getMonth() - 1);
+    
+    const year = prevMonth.getFullYear();
+    const month = String(prevMonth.getMonth() + 1).padStart(2, '0');
+    return `${year}-${month}-01`;
+  }
+
   // Traffic Analytics (.Trends API) - Requires separate subscription
-  async getTrafficSummary(domains: string[], country: string = 'us'): Promise<SemrushApiResponse> {
+  async getTrafficSummary(domains: string[], country: string = 'us', displayDate?: string): Promise<SemrushApiResponse> {
     if (!Array.isArray(domains)) {
       throw new SemrushApiError('Domains parameter must be an array', 400);
     }
-    if (domains.length > 5) {
-      throw new SemrushApiError('Maximum 5 domains allowed', 400);
+    if (domains.length > 200) {
+      throw new SemrushApiError('Maximum 200 domains allowed', 400);
     }
     if (domains.length === 0) {
       throw new SemrushApiError('At least one domain is required', 400);
@@ -505,23 +516,34 @@ export class SemrushApiClient {
     
     // Traffic Analytics API uses a different endpoint structure
     return this.makeRequest(`${TRENDS_API_BASE_URL}summary`, {
-      domains: domains.join(','),
+      targets: domains.join(','),
       country,
-      date: 'all'
+      display_date: displayDate || this.formatDate(),
+      export_columns: 'target,rank,visits,users,desktop_share,mobile_share'
     });
   }
   
-  async getTrafficSources(domain: string, country: string = 'us'): Promise<SemrushApiResponse> {
+  async getTrafficSources(domain: string, country: string = 'us', displayDate?: string, limit?: number): Promise<SemrushApiResponse> {
     if (!domain) {
       throw new SemrushApiError('Domain is required', 400);
     }
     
-    // Traffic Analytics API uses a different endpoint structure
-    return this.makeRequest(`${TRENDS_API_BASE_URL}sources`, {
-      domain,
+    const params: ApiQueryParams = {
+      target: domain,
       country,
-      date: 'all'
-    });
+      display_date: displayDate || this.formatDate(),
+      export_columns: 'target,from_target,traffic_share,traffic,channel'
+    };
+    
+    if (limit) {
+      if (limit < 1) {
+        throw new SemrushApiError('Limit must be a positive number', 400);
+      }
+      params.display_limit = limit;
+    }
+    
+    // Traffic Analytics API uses a different endpoint structure
+    return this.makeRequest(`${TRENDS_API_BASE_URL}sources`, params);
   }
   
   // Utility to check API units balance
