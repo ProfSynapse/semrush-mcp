@@ -1,78 +1,50 @@
 /**
- * Core interfaces for the Agent-Mode-Tool architecture
+ * Core interfaces for the hierarchical Agent-Mode-Tool architecture
  */
 
 /**
- * Interface for a tool that can be executed
+ * Interface for a parameter definition
  */
-export interface ITool {
-  /**
-   * The name of the tool
-   */
-  name: string;
-
-  /**
-   * Description of what the tool does
-   */
+export interface IParameterDefinition {
+  type: string;
   description: string;
-
-  /**
-   * JSON Schema defining the input parameters for the tool
-   */
-  inputSchema: object;
-
-  /**
-   * Execute the tool with the provided parameters
-   * @param params The parameters for the tool
-   * @returns A promise that resolves to the result of the tool execution
-   */
-  execute(params: any): Promise<any>;
+  required: boolean;
+  default?: any;
+  examples?: any[];
 }
 
 /**
- * Interface for a mode that contains tools
+ * Interface for a tool definition
  */
-export interface IMode {
-  /**
-   * The name of the mode
-   */
+export interface IToolDefinition {
   name: string;
-
-  /**
-   * Description of what the mode provides
-   */
   description: string;
-
-  /**
-   * Register a tool with this mode
-   * @param tool The tool to register
-   */
-  registerTool(tool: ITool): void;
-
-  /**
-   * Get all tools registered with this mode
-   * @returns An array of tools
-   */
-  getTools(): ITool[];
-
-  /**
-   * Get a specific tool by name
-   * @param name The name of the tool to get
-   * @returns The tool, or undefined if not found
-   */
-  getTool(name: string): ITool | undefined;
-
-  /**
-   * Execute a tool by name with the provided parameters
-   * @param name The name of the tool to execute
-   * @param params The parameters for the tool
-   * @returns A promise that resolves to the result of the tool execution
-   */
-  executeTool(name: string, params: any): Promise<any>;
+  parameters: Record<string, IParameterDefinition>;
+  examples: {
+    params: Record<string, any>;
+  }[];
 }
 
 /**
- * Interface for an agent that contains modes
+ * Interface for a mode definition
+ */
+export interface IModeDefinition {
+  name: string;
+  description: string;
+  availableTools: IToolDefinition[];
+}
+
+/**
+ * Interface for an agent definition
+ */
+export interface IAgentDefinition {
+  name: string;
+  description: string;
+  availableModes: IModeDefinition[];
+}
+
+/**
+ * Interface for an agent that can execute tools
  */
 export interface IAgent {
   /**
@@ -86,21 +58,10 @@ export interface IAgent {
   description: string;
 
   /**
-   * Register a mode with this agent
-   * @param mode The mode to register
+   * Execute a tool with the provided parameters
+   * @param mode The mode to use
+   * @param tool The tool to execute
+   * @param params The parameters for the tool
    */
-  registerMode(mode: IMode): void;
-
-  /**
-   * Get all modes registered with this agent
-   * @returns An array of modes
-   */
-  getModes(): IMode[];
-
-  /**
-   * Get a specific mode by name
-   * @param name The name of the mode to get
-   * @returns The mode, or undefined if not found
-   */
-  getMode(name: string): IMode | undefined;
+  execute(mode: string, tool: string, params: Record<string, any>): Promise<any>;
 }

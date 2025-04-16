@@ -2,8 +2,9 @@ import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 import NodeCache from 'node-cache';
 import { config, logger } from './config.js';
 
-// Base API URL
+// Base API URLs
 const SEMRUSH_API_BASE_URL = 'https://api.semrush.com/';
+const BACKLINKS_API_BASE_URL = 'https://api.semrush.com/analytics/v1/';
 const TRENDS_API_BASE_URL = 'https://api.semrush.com/analytics/ta/';
 
 // Create a cache with TTL from config
@@ -83,7 +84,7 @@ export class SemrushApiClient {
   
   constructor(apiKey = config.SEMRUSH_API_KEY) {
     if (!apiKey) {
-      throw new Error('Semrush API key is required');
+      throw new SemrushApiError('Semrush API key is required', 401);
     }
     this.apiKey = apiKey;
   }
@@ -148,9 +149,16 @@ export class SemrushApiClient {
   }
   
   // Analytics API methods
-  
   // Domain Analytics
   async getDomainOverview(domain: string, database: string = 'us'): Promise<SemrushApiResponse> {
+    if (!domain) {
+      throw new SemrushApiError('Domain is required', 400);
+    }
+    if (!database) {
+      throw new SemrushApiError('Database is required', 400);
+    }
+    
+    // According to documentation, domain_ranks requires specific export_columns
     return this.makeRequest(SEMRUSH_API_BASE_URL, {
       type: 'domain_ranks',
       domain,
@@ -159,37 +167,11 @@ export class SemrushApiClient {
     });
   }
   
-  async getDomainOrganicKeywords(domain: string, database: string = 'us', limit?: number): Promise<SemrushApiResponse> {
-    const params: ApiQueryParams = {
-      type: 'domain_organic',
-      domain,
-      database,
-      export_columns: 'Ph,Po,Pp,Pd,Nq,Cp,Ur,Tr,Tc,Co,Nr,Td'
-    };
-    
-    if (limit) {
-      params.display_limit = limit;
-    }
-    
-    return this.makeRequest(SEMRUSH_API_BASE_URL, params);
-  }
-  
-  async getDomainPaidKeywords(domain: string, database: string = 'us', limit?: number): Promise<SemrushApiResponse> {
-    const params: ApiQueryParams = {
-      type: 'domain_adwords',
-      domain,
-      database,
-      export_columns: 'Ph,Po,Pp,Pd,Ab,Nq,Cp,Tr,Tc,Co,Nr,Td'
-    };
-    
-    if (limit) {
-      params.display_limit = limit;
-    }
-    
-    return this.makeRequest(SEMRUSH_API_BASE_URL, params);
-  }
-  
   async getCompetitorsInOrganic(domain: string, database: string = 'us', limit?: number): Promise<SemrushApiResponse> {
+    if (!domain) {
+      throw new SemrushApiError('Domain is required', 400);
+    }
+    
     const params: ApiQueryParams = {
       type: 'domain_organic_organic',
       domain,
@@ -198,35 +180,9 @@ export class SemrushApiClient {
     };
     
     if (limit) {
-      params.display_limit = limit;
-    }
-    
-    return this.makeRequest(SEMRUSH_API_BASE_URL, params);
-  }
-  
-  // Backlinks API
-  async getBacklinks(target: string, limit?: number): Promise<SemrushApiResponse> {
-    const params: ApiQueryParams = {
-      type: 'backlinks',
-      target,
-      export_columns: 'source_title,source_url,target_url,anchor,page_score,domain_score,external_num,internal_num,first_seen,last_seen'
-    };
-    
-    if (limit) {
-      params.display_limit = limit;
-    }
-    
-    return this.makeRequest(SEMRUSH_API_BASE_URL, params);
-  }
-  
-  async getBacklinksDomains(target: string, limit?: number): Promise<SemrushApiResponse> {
-    const params: ApiQueryParams = {
-      type: 'backlinks_refdomains',
-      target,
-      export_columns: 'domain,domain_score,backlinks_num,ip,country,first_seen,last_seen'
-    };
-    
-    if (limit) {
+      if (limit < 1) {
+        throw new SemrushApiError('Limit must be a positive number', 400);
+      }
       params.display_limit = limit;
     }
     
@@ -234,32 +190,14 @@ export class SemrushApiClient {
   }
   
   // Keyword Analytics
-  async getKeywordOverview(keyword: string, database: string = 'us'): Promise<SemrushApiResponse> {
-    return this.makeRequest(SEMRUSH_API_BASE_URL, {
-      type: 'phrase_all',
-      phrase: keyword,
-      database,
-      export_columns: 'Ph,Nq,Cp,Co,Nr,Td'
-    });
-  }
-  
-  async getRelatedKeywords(keyword: string, database: string = 'us', limit?: number): Promise<SemrushApiResponse> {
-    const params: ApiQueryParams = {
-      type: 'phrase_related',
-      phrase: keyword,
-      database,
-      export_columns: 'Ph,Nq,Cp,Co,Nr,Td'
-    };
-    
-    if (limit) {
-      params.display_limit = limit;
+  async getKeywordOverviewSingleDb(keyword: string, database: string): Promise<SemrushApiResponse> {
+    if (!keyword) {
+      throw new SemrushApiError('Keyword is required', 400);
+    }
+    if (!database) {
+      throw new SemrushApiError('Database is required for single database overview', 400);
     }
     
-    return this.makeRequest(SEMRUSH_API_BASE_URL, params);
-  }
-  
-  // Keyword Overview for one database (vs phrase_all which is all databases)
-  async getKeywordOverviewSingleDb(keyword: string, database: string): Promise<SemrushApiResponse> {
     return this.makeRequest(SEMRUSH_API_BASE_URL, {
       type: 'phrase_this',
       phrase: keyword,
@@ -268,8 +206,31 @@ export class SemrushApiClient {
     });
   }
 
-  // Batch Keyword Overview - analyze up to 100 keywords at once
+  async getKeywordOverview(keyword: string, database: string = 'us'): Promise<SemrushApiResponse> {
+    if (!keyword) {
+      throw new SemrushApiError('Keyword is required', 400);
+    }
+    
+    return this.makeRequest(SEMRUSH_API_BASE_URL, {
+      type: 'phrase_all',
+      phrase: keyword,
+      database,
+      export_columns: 'Ph,Nq,Cp,Co,Nr,Td'
+    });
+  }
+
   async getBatchKeywordOverview(keywords: string[], database: string): Promise<SemrushApiResponse> {
+    if (!Array.isArray(keywords)) {
+      throw new SemrushApiError('Keywords must be an array', 400);
+    }
+    if (keywords.length > 100) {
+      throw new SemrushApiError('Maximum 100 keywords allowed', 400);
+    }
+    if (keywords.length === 0) {
+      throw new SemrushApiError('At least one keyword is required', 400);
+    }
+    
+    // According to documentation, phrase_these expects semicolon-separated keywords
     return this.makeRequest(SEMRUSH_API_BASE_URL, {
       type: 'phrase_these',
       phrase: keywords.join(';'),
@@ -278,56 +239,33 @@ export class SemrushApiClient {
     });
   }
 
-  // Organic Results - domains ranking in Google's top 100 for a keyword
-  async getKeywordOrganicResults(keyword: string, database: string, limit?: number): Promise<SemrushApiResponse> {
+  async getRelatedKeywords(keyword: string, database: string = 'us', limit?: number): Promise<SemrushApiResponse> {
+    if (!keyword) {
+      throw new SemrushApiError('Keyword is required', 400);
+    }
+    
     const params: ApiQueryParams = {
-      type: 'phrase_organic',
+      type: 'phrase_related',
       phrase: keyword,
       database,
-      export_columns: 'Po,Pt,Dn,Ur,Fk,Fp,Fl'
+      export_columns: 'Ph,Nq,Cp,Co,Nr,Td'
     };
     
     if (limit) {
+      if (limit < 1) {
+        throw new SemrushApiError('Limit must be a positive number', 400);
+      }
       params.display_limit = limit;
     }
     
     return this.makeRequest(SEMRUSH_API_BASE_URL, params);
   }
 
-  // Paid Results - domains in Google's paid search results for a keyword
-  async getKeywordPaidResults(keyword: string, database: string, limit?: number): Promise<SemrushApiResponse> {
-    const params: ApiQueryParams = {
-      type: 'phrase_adwords',
-      phrase: keyword,
-      database,
-      export_columns: 'Dn,Ur,Vu'
-    };
-    
-    if (limit) {
-      params.display_limit = limit;
+  async getBroadMatchKeywords(keyword: string, database: string = 'us', limit?: number): Promise<SemrushApiResponse> {
+    if (!keyword) {
+      throw new SemrushApiError('Keyword is required', 400);
     }
     
-    return this.makeRequest(SEMRUSH_API_BASE_URL, params);
-  }
-
-  // Keyword Ads History - domains that bid on a keyword in last 12 months
-  async getKeywordAdsHistory(keyword: string, database: string, limit?: number): Promise<SemrushApiResponse> {
-    const params: ApiQueryParams = {
-      type: 'phrase_adwords_historical',
-      phrase: keyword,
-      database,
-      export_columns: 'Dn,Dt,Po,Ur,Tt,Ds,Vu'
-    };
-    
-    if (limit) {
-      params.display_limit = limit;
-    }
-    
-    return this.makeRequest(SEMRUSH_API_BASE_URL, params);
-  }
-
-  // Broad Match Keywords - broad matches and alternative search queries
-  async getBroadMatchKeywords(keyword: string, database: string, limit?: number): Promise<SemrushApiResponse> {
     const params: ApiQueryParams = {
       type: 'phrase_fullsearch',
       phrase: keyword,
@@ -336,14 +274,20 @@ export class SemrushApiClient {
     };
     
     if (limit) {
+      if (limit < 1) {
+        throw new SemrushApiError('Limit must be a positive number', 400);
+      }
       params.display_limit = limit;
     }
     
     return this.makeRequest(SEMRUSH_API_BASE_URL, params);
   }
 
-  // Phrase Questions - question-based keywords related to a term
-  async getPhraseQuestions(keyword: string, database: string, limit?: number): Promise<SemrushApiResponse> {
+  async getPhraseQuestions(keyword: string, database: string = 'us', limit?: number): Promise<SemrushApiResponse> {
+    if (!keyword) {
+      throw new SemrushApiError('Keyword is required', 400);
+    }
+    
     const params: ApiQueryParams = {
       type: 'phrase_questions',
       phrase: keyword,
@@ -352,14 +296,27 @@ export class SemrushApiClient {
     };
     
     if (limit) {
+      if (limit < 1) {
+        throw new SemrushApiError('Limit must be a positive number', 400);
+      }
       params.display_limit = limit;
     }
     
     return this.makeRequest(SEMRUSH_API_BASE_URL, params);
   }
 
-  // Keyword Difficulty - estimates difficulty of ranking in top 10
   async getKeywordDifficulty(keywords: string[], database: string): Promise<SemrushApiResponse> {
+    if (!Array.isArray(keywords)) {
+      throw new SemrushApiError('Keywords must be an array', 400);
+    }
+    if (keywords.length > 100) {
+      throw new SemrushApiError('Maximum 100 keywords allowed', 400);
+    }
+    if (keywords.length === 0) {
+      throw new SemrushApiError('At least one keyword is required', 400);
+    }
+    
+    // According to documentation, phrase_kdi expects semicolon-separated keywords
     return this.makeRequest(SEMRUSH_API_BASE_URL, {
       type: 'phrase_kdi',
       phrase: keywords.join(';'),
@@ -368,9 +325,186 @@ export class SemrushApiClient {
     });
   }
   
+  // Domain Keyword Analysis
+  async getDomainOrganicKeywords(domain: string, database: string = 'us', limit?: number): Promise<SemrushApiResponse> {
+    if (!domain) {
+      throw new SemrushApiError('Domain is required', 400);
+    }
+    
+    const params: ApiQueryParams = {
+      type: 'domain_organic',
+      domain,
+      database,
+      export_columns: 'Ph,Po,Pp,Pd,Nq,Cp,Ur,Tr,Tc,Co,Nr,Td'
+    };
+    
+    if (limit) {
+      if (limit < 1) {
+        throw new SemrushApiError('Limit must be a positive number', 400);
+      }
+      params.display_limit = limit;
+    }
+    
+    return this.makeRequest(SEMRUSH_API_BASE_URL, params);
+  }
+
+  async getDomainPaidKeywords(domain: string, database: string = 'us', limit?: number): Promise<SemrushApiResponse> {
+    if (!domain) {
+      throw new SemrushApiError('Domain is required', 400);
+    }
+    
+    const params: ApiQueryParams = {
+      type: 'domain_adwords',
+      domain,
+      database,
+      export_columns: 'Ph,Po,Pp,Pd,Ab,Nq,Cp,Tr,Tc,Co,Nr,Td'
+    };
+    
+    if (limit) {
+      if (limit < 1) {
+        throw new SemrushApiError('Limit must be a positive number', 400);
+      }
+      params.display_limit = limit;
+    }
+    
+    return this.makeRequest(SEMRUSH_API_BASE_URL, params);
+  }
+  
+  // Keywords in Organic/Paid Results
+  async getKeywordOrganicResults(keyword: string, database: string, limit?: number): Promise<SemrushApiResponse> {
+    if (!keyword) {
+      throw new SemrushApiError('Keyword is required', 400);
+    }
+    if (!database) {
+      throw new SemrushApiError('Database is required', 400);
+    }
+    
+    const params: ApiQueryParams = {
+      type: 'phrase_organic',
+      phrase: keyword,
+      database,
+      export_columns: 'Po,Pt,Dn,Ur,Fk,Fp,Fl'
+    };
+    
+    if (limit) {
+      if (limit < 1) {
+        throw new SemrushApiError('Limit must be a positive number', 400);
+      }
+      params.display_limit = limit;
+    }
+    
+    return this.makeRequest(SEMRUSH_API_BASE_URL, params);
+  }
+
+  async getKeywordPaidResults(keyword: string, database: string, limit?: number): Promise<SemrushApiResponse> {
+    if (!keyword) {
+      throw new SemrushApiError('Keyword is required', 400);
+    }
+    if (!database) {
+      throw new SemrushApiError('Database is required', 400);
+    }
+    
+    const params: ApiQueryParams = {
+      type: 'phrase_adwords',
+      phrase: keyword,
+      database,
+      export_columns: 'Dn,Ur,Vu'
+    };
+    
+    if (limit) {
+      if (limit < 1) {
+        throw new SemrushApiError('Limit must be a positive number', 400);
+      }
+      params.display_limit = limit;
+    }
+    
+    return this.makeRequest(SEMRUSH_API_BASE_URL, params);
+  }
+
+  async getKeywordAdsHistory(keyword: string, database: string, limit?: number): Promise<SemrushApiResponse> {
+    if (!keyword) {
+      throw new SemrushApiError('Keyword is required', 400);
+    }
+    if (!database) {
+      throw new SemrushApiError('Database is required', 400);
+    }
+    
+    const params: ApiQueryParams = {
+      type: 'phrase_adwords_historical',
+      phrase: keyword,
+      database,
+      export_columns: 'Dn,Dt,Po,Ur,Tt,Ds,Vu'
+    };
+    
+    if (limit) {
+      if (limit < 1) {
+        throw new SemrushApiError('Limit must be a positive number', 400);
+      }
+      params.display_limit = limit;
+    }
+    
+    return this.makeRequest(SEMRUSH_API_BASE_URL, params);
+  }
+  
+  // Backlinks API
+  async getBacklinks(target: string, database: string = 'us', limit?: number): Promise<SemrushApiResponse> {
+    if (!target) {
+      throw new SemrushApiError('Target domain or URL is required', 400);
+    }
+    
+    const params: ApiQueryParams = {
+      type: 'backlinks',
+      target,
+      target_type: target.includes('/') ? 'url' : 'root_domain',
+      export_columns: 'source_title,source_url,target_url,anchor,page_score,domain_score,external_num,internal_num,first_seen,last_seen'
+    };
+    
+    if (limit) {
+      if (limit < 1) {
+        throw new SemrushApiError('Limit must be a positive number', 400);
+      }
+      params.display_limit = limit;
+    }
+    
+    return this.makeRequest(BACKLINKS_API_BASE_URL, params);
+  }
+  
+  async getBacklinksDomains(target: string, database: string = 'us', limit?: number): Promise<SemrushApiResponse> {
+    if (!target) {
+      throw new SemrushApiError('Target domain or URL is required', 400);
+    }
+    
+    const params: ApiQueryParams = {
+      type: 'backlinks_refdomains',
+      target,
+      target_type: target.includes('/') ? 'url' : 'root_domain',
+      export_columns: 'domain,domain_score,backlinks_num,ip,country,first_seen,last_seen'
+    };
+    
+    if (limit) {
+      if (limit < 1) {
+        throw new SemrushApiError('Limit must be a positive number', 400);
+      }
+      params.display_limit = limit;
+    }
+    
+    return this.makeRequest(BACKLINKS_API_BASE_URL, params);
+  }
+  
   // Traffic Analytics (.Trends API) - Requires separate subscription
   async getTrafficSummary(domains: string[], country: string = 'us'): Promise<SemrushApiResponse> {
-    return this.makeRequest(TRENDS_API_BASE_URL + 'summary', {
+    if (!Array.isArray(domains)) {
+      throw new SemrushApiError('Domains parameter must be an array', 400);
+    }
+    if (domains.length > 5) {
+      throw new SemrushApiError('Maximum 5 domains allowed', 400);
+    }
+    if (domains.length === 0) {
+      throw new SemrushApiError('At least one domain is required', 400);
+    }
+    
+    // Traffic Analytics API uses a different endpoint structure
+    return this.makeRequest(`${TRENDS_API_BASE_URL}summary`, {
       domains: domains.join(','),
       country,
       date: 'all'
@@ -378,7 +512,12 @@ export class SemrushApiClient {
   }
   
   async getTrafficSources(domain: string, country: string = 'us'): Promise<SemrushApiResponse> {
-    return this.makeRequest(TRENDS_API_BASE_URL + 'sources', {
+    if (!domain) {
+      throw new SemrushApiError('Domain is required', 400);
+    }
+    
+    // Traffic Analytics API uses a different endpoint structure
+    return this.makeRequest(`${TRENDS_API_BASE_URL}sources`, {
       domain,
       country,
       date: 'all'
@@ -394,4 +533,4 @@ export class SemrushApiClient {
 }
 
 // Export a singleton instance
-export const semrushApi = new SemrushApiClient(); 
+export const semrushApi = new SemrushApiClient();

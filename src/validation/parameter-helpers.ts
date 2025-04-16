@@ -15,7 +15,7 @@ import { ParameterDefinition, transformations } from './unified-tool-registry.js
 export function createKeywordParam(required: boolean = true): ParameterDefinition {
   return {
     type: 'string',
-    description: 'Keyword or phrase to analyze (e.g., "digital marketing", "seo tools"). Use specific, targeted phrases for best results. Do not include special characters or excessive punctuation.',
+    description: 'Keyword or phrase to analyze (e.g., "digital marketing", "seo tools"). IMPORTANT: Must be a single string, not an array. Use specific, targeted phrases for best results. Do not include special characters or excessive punctuation.',
     required,
     aliases: ['phrase', 'query'],
     transform: transformations.lowercase,
@@ -32,7 +32,7 @@ export function createKeywordParam(required: boolean = true): ParameterDefinitio
 export function createDatabaseParam(required: boolean = false): ParameterDefinition {
   return {
     type: 'string',
-    description: 'Database to use (country code). Specifies which regional database to query for results. Default is "us" if not specified.',
+    description: 'Database to use (country code). Specifies which regional database to query for results. Default is "us" if not specified. NOTE: For traffic tools, use "country" parameter instead of "database".',
     required,
     enum: ['us', 'uk', 'ca', 'au', 'de', 'fr', 'es', 'it', 'br', 'ru', 'jp', 'in', 'cn'],
     default: required ? undefined : 'us'
@@ -47,7 +47,7 @@ export function createDatabaseParam(required: boolean = false): ParameterDefinit
 export function createDomainParam(required: boolean = true): ParameterDefinition {
   return {
     type: 'string',
-    description: 'Domain name to analyze (e.g., "semrush.com", "ahrefs.com"). IMPORTANT: Do not include http:// or https:// prefixes, www. is optional. For domain-specific tools, use this parameter instead of "keyword".',
+    description: 'Domain name to analyze (e.g., "semrush.com", "ahrefs.com"). IMPORTANT: Do not include http:// or https:// prefixes, www. is optional. Must be a single domain string, not an array. For domain-specific tools, use this parameter instead of "keyword".',
     required,
     transform: transformations.formatDomain,
     pattern: '^([a-zA-Z0-9]([a-zA-Z0-9\\-]{0,61}[a-zA-Z0-9])?\\.)+[a-zA-Z]{2,}$'
@@ -62,7 +62,7 @@ export function createDomainParam(required: boolean = true): ParameterDefinition
 export function createLimitParam(required: boolean = false): ParameterDefinition {
   return {
     type: 'number',
-    description: 'Maximum number of results to return (range: 1-1000). Controls the size of the result set. NOTE: Not all tools support this parameter (e.g., keyword_overview does NOT accept a limit parameter).',
+    description: 'Maximum number of results to return (range: 1-1000). Controls the size of the result set. This is optional and defaults to 100. NOTE: Not all tools support this parameter (e.g., keyword_overview does NOT accept a limit parameter).',
     required,
     minimum: 1,
     maximum: 1000,
@@ -78,7 +78,7 @@ export function createLimitParam(required: boolean = false): ParameterDefinition
 export function createCountryParam(required: boolean = false): ParameterDefinition {
   return {
     type: 'string',
-    description: 'Country code for traffic data (e.g., "us", "uk", "ca"). Specifies which country\'s traffic data to analyze. Default is "us" if not specified.',
+    description: 'Country code for traffic data (e.g., "us", "uk", "ca"). Specifies which country\'s traffic data to analyze. Default is "us" if not specified. IMPORTANT: Traffic tools use "country" parameter, NOT "database" parameter.',
     required,
     enum: ['us', 'uk', 'ca', 'au', 'de', 'fr', 'es', 'it', 'br', 'ru', 'jp', 'in', 'cn'],
     default: 'us'
@@ -93,7 +93,7 @@ export function createCountryParam(required: boolean = false): ParameterDefiniti
 export function createTargetParam(required: boolean = true): ParameterDefinition {
   return {
     type: 'string',
-    description: 'Domain or URL to analyze for backlinks (e.g., "semrush.com", "ahrefs.com/blog"). Can be a full domain or a specific URL path. Used specifically for backlink analysis tools.',
+    description: 'Domain or URL to analyze for backlinks (e.g., "semrush.com", "ahrefs.com/blog"). Can be a full domain or a specific URL path. Used specifically for backlink analysis tools. Do not include http:// or https:// prefixes.',
     required,
     transform: transformations.formatDomain
   };
@@ -108,7 +108,7 @@ export function createTargetParam(required: boolean = true): ParameterDefinition
 export function createDomainsArrayParam(maxItems: number = 5, required: boolean = true): ParameterDefinition {
   return {
     type: 'array',
-    description: `Array of domains to analyze (maximum ${maxItems} domains). Used for comparative analysis tools like traffic_summary. Each domain should be formatted without http/https prefixes.`,
+    description: `Array of domains to analyze (maximum ${maxItems} domains). IMPORTANT: Must be an array like ["example.com", "example.org"], not a single string. Used for comparative analysis tools like traffic_summary. Each domain should be formatted without http/https prefixes.`,
     required,
     maxItems,
     minItems: 1,
@@ -129,7 +129,7 @@ export function createDomainsArrayParam(maxItems: number = 5, required: boolean 
 export function createKeywordsArrayParam(maxItems: number = 100, required: boolean = true): ParameterDefinition {
   return {
     type: 'array',
-    description: `Array of keywords to analyze (maximum ${maxItems}). Used for batch analysis tools like batch_keyword_overview and keyword_difficulty. Each keyword should be a specific, targeted phrase.`,
+    description: `Array of keywords to analyze (maximum ${maxItems}). IMPORTANT: Must be an array like ["keyword1", "keyword2"], not a single string. Used for batch analysis tools like batch_keyword_overview and keyword_difficulty. Each keyword should be a specific, targeted phrase.`,
     required,
     maxItems,
     minItems: 1,

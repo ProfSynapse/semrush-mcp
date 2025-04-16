@@ -1,14 +1,12 @@
-import { IAgent, IMode } from './interfaces.js';
+import { IAgent } from './interfaces.js';
+import { unifiedToolRegistry } from '../validation/unified-tool-registry.js';
 
 /**
  * Base implementation of the IAgent interface
+ * 
+ * Uses the unified registry for tool validation and execution.
  */
-export class BaseAgent implements IAgent {
-  /**
-   * Map of modes registered with this agent
-   */
-  protected modes: Map<string, IMode> = new Map();
-
+export abstract class BaseAgent implements IAgent {
   /**
    * Create a new BaseAgent
    * @param name The name of the agent
@@ -20,27 +18,30 @@ export class BaseAgent implements IAgent {
   ) {}
 
   /**
-   * Register a mode with this agent
-   * @param mode The mode to register
+   * Execute a tool action
+   * @param mode The mode to use
+   * @param tool The tool to execute
+   * @param params The parameters for the tool
    */
-  registerMode(mode: IMode): void {
-    this.modes.set(mode.name, mode);
+  async execute(mode: string, tool: string, params: Record<string, any>): Promise<any> {
+    // First validate the request using the unified registry
+    const validatedParams = unifiedToolRegistry.validateAndNormalizeParams(
+      this.name,
+      mode,
+      tool,
+      params
+    );
+
+    // Execute the tool action
+    return await this.executeToolAction(tool, validatedParams);
   }
 
   /**
-   * Get all modes registered with this agent
-   * @returns An array of modes
+   * Implementation for executing a tool action with validated parameters
+   * Must be implemented by derived classes
    */
-  getModes(): IMode[] {
-    return Array.from(this.modes.values());
-  }
-
-  /**
-   * Get a specific mode by name
-   * @param name The name of the mode to get
-   * @returns The mode, or undefined if not found
-   */
-  getMode(name: string): IMode | undefined {
-    return this.modes.get(name);
-  }
+  protected abstract executeToolAction(
+    toolName: string, 
+    params: Record<string, any>
+  ): Promise<any>;
 }

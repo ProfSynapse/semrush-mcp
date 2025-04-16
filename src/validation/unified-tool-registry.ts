@@ -9,72 +9,6 @@
  */
 
 /**
- * Common transformations for parameters
- */
-export const transformations = {
-  /**
-   * Transforms a comma-separated string to an array
-   */
-  commaStringToArray: (value: string): string[] => {
-    if (typeof value !== 'string') return value;
-    return value.split(',').map(item => item.trim());
-  },
-  
-  /**
-   * Transforms an array to a comma-separated string
-   */
-  arrayToCommaString: (value: any[]): string => {
-    if (!Array.isArray(value)) return value;
-    return value.join(',');
-  },
-  
-  /**
-   * Ensures a value is lowercase
-   */
-  lowercase: (value: string): string => {
-    if (typeof value !== 'string') return value;
-    return value.toLowerCase();
-  },
-  
-  /**
-   * Ensures a domain is properly formatted (removes protocol, path, etc.)
-   */
-  formatDomain: (value: string): string => {
-    if (typeof value !== 'string') return value;
-    
-    // Remove protocol
-    let domain = value.replace(/^https?:\/\//, '');
-    
-    // Remove path and query parameters
-    domain = domain.split('/')[0];
-    
-    // Remove port
-    domain = domain.split(':')[0];
-    
-    return domain.toLowerCase();
-  },
-  
-  /**
-   * Formats a date to YYYY-MM-DD
-   */
-  formatDate: (value: string | Date): string => {
-    if (value instanceof Date) {
-      return value.toISOString().split('T')[0];
-    }
-    
-    if (typeof value !== 'string') return value;
-    
-    // Try to parse the date
-    const date = new Date(value);
-    if (isNaN(date.getTime())) {
-      throw new Error(`Invalid date: ${value}`);
-    }
-    
-    return date.toISOString().split('T')[0];
-  }
-};
-
-/**
  * Interface for a parameter definition
  */
 export interface ParameterDefinition {
@@ -96,18 +30,37 @@ export interface ParameterDefinition {
     type: string;
     description?: string;
   };
+  examples?: any[];
 }
 
 /**
- * Interface for a tool definition
+ * Interface for a tool definition within a mode
  */
 export interface ToolDefinition {
   name: string;
   description: string;
   parameters: Record<string, ParameterDefinition>;
-  modes: string[];
-  agents: string[];
-  examples?: Record<string, any>[];
+  examples: {
+    params: Record<string, any>;
+  }[];
+}
+
+/**
+ * Interface for a mode definition within an agent
+ */
+export interface ModeDefinition {
+  name: string;
+  description: string;
+  availableTools: ToolDefinition[];
+}
+
+/**
+ * Interface for an agent definition
+ */
+export interface AgentDefinition {
+  name: string;
+  description: string;
+  availableModes: ModeDefinition[];
 }
 
 /**
@@ -121,135 +74,143 @@ export class ToolValidationError extends Error {
 }
 
 /**
- * Interface for a tool schema registry
+ * Interface for a unified registry managing agents, modes, and tools
  */
 export interface IToolSchemaRegistry {
-  registerTool(tool: ToolDefinition): void;
-  getTool(name: string): ToolDefinition | undefined;
-  getAllTools(): ToolDefinition[];
-  getToolsForAgent(agentName: string): ToolDefinition[];
-  getToolsForMode(modeName: string): ToolDefinition[];
-  getToolsForAgentAndMode(agentName: string, modeName: string): ToolDefinition[];
-  isToolAvailable(toolName: string, agentName: string, modeName: string): boolean;
-  getModesForTool(toolName: string, agentName: string): string[];
-  validateAndNormalizeParams(toolName: string, params: Record<string, any>): Record<string, any>;
-  getToolSchema(toolName: string): object;
+  registerAgent(agent: AgentDefinition): void;
+  getAgent(name: string): AgentDefinition | undefined;
+  getAllAgents(): AgentDefinition[];
+  getMode(agentName: string, modeName: string): ModeDefinition | undefined;
+  getTool(agentName: string, modeName: string, toolName: string): ToolDefinition | undefined;
+  findToolMode(agentName: string, toolName: string): { modeName: string; tool: ToolDefinition } | undefined;
+  validateAndNormalizeParams(agentName: string, modeName: string, toolName: string, params: Record<string, any>): Record<string, any>;
+  getToolSchema(agentName: string, modeName: string, toolName: string): object;
 }
 
 /**
- * The unified tool registry
+ * Common transformations for parameters
+ */
+export const transformations = {
+  commaStringToArray: (value: string): string[] => {
+    if (typeof value !== 'string') return value;
+    return value.split(',').map(item => item.trim());
+  },
+  
+  arrayToCommaString: (value: any[]): string => {
+    if (!Array.isArray(value)) return value;
+    return value.join(',');
+  },
+  
+  lowercase: (value: string): string => {
+    if (typeof value !== 'string') return value;
+    return value.toLowerCase();
+  },
+  
+  formatDomain: (value: string): string => {
+    if (typeof value !== 'string') return value;
+    let domain = value.replace(/^https?:\/\//, '');
+    domain = domain.split('/')[0];
+    domain = domain.split(':')[0];
+    return domain.toLowerCase();
+  },
+  
+  formatDate: (value: string | Date): string => {
+    if (value instanceof Date) {
+      return value.toISOString().split('T')[0];
+    }
+    if (typeof value !== 'string') return value;
+    const date = new Date(value);
+    if (isNaN(date.getTime())) {
+      throw new Error(`Invalid date: ${value}`);
+    }
+    return date.toISOString().split('T')[0];
+  }
+};
+
+/**
+ * The unified registry for managing agents, modes, and tools
  */
 export class UnifiedToolRegistry implements IToolSchemaRegistry {
-  private tools: Map<string, ToolDefinition> = new Map();
+  private agents: Map<string, AgentDefinition> = new Map();
   
-  /**
-   * Register a tool with the registry
-   * @param tool The tool definition to register
-   */
-  registerTool(tool: ToolDefinition): void {
-    this.tools.set(tool.name, tool);
+  registerAgent(agent: AgentDefinition): void {
+    this.agents.set(agent.name, agent);
   }
   
-  /**
-   * Get a tool by name
-   * @param name The name of the tool to get
-   * @returns The tool definition, or undefined if not found
-   */
-  getTool(name: string): ToolDefinition | undefined {
-    return this.tools.get(name);
+  getAgent(name: string): AgentDefinition | undefined {
+    return this.agents.get(name);
   }
   
-  /**
-   * Get all tools in the registry
-   * @returns An array of tool definitions
-   */
-  getAllTools(): ToolDefinition[] {
-    return Array.from(this.tools.values());
+  getAllAgents(): AgentDefinition[] {
+    return Array.from(this.agents.values());
   }
   
-  /**
-   * Get all tools for a specific agent
-   * @param agentName The name of the agent
-   * @returns An array of tool definitions
-   */
-  getToolsForAgent(agentName: string): ToolDefinition[] {
-    return this.getAllTools().filter(tool => tool.agents.includes(agentName));
+  getMode(agentName: string, modeName: string): ModeDefinition | undefined {
+    const agent = this.getAgent(agentName);
+    if (!agent) return undefined;
+    return agent.availableModes.find(mode => mode.name === modeName);
   }
   
-  /**
-   * Get all tools for a specific mode
-   * @param modeName The name of the mode
-   * @returns An array of tool definitions
-   */
-  getToolsForMode(modeName: string): ToolDefinition[] {
-    return this.getAllTools().filter(tool => tool.modes.includes(modeName));
+  getTool(agentName: string, modeName: string, toolName: string): ToolDefinition | undefined {
+    const mode = this.getMode(agentName, modeName);
+    if (!mode) return undefined;
+    return mode.availableTools.find(tool => tool.name === toolName);
   }
-  
-  /**
-   * Get all tools for a specific agent and mode
-   * @param agentName The name of the agent
-   * @param modeName The name of the mode
-   * @returns An array of tool definitions
-   */
-  getToolsForAgentAndMode(agentName: string, modeName: string): ToolDefinition[] {
-    return this.getAllTools().filter(tool => 
-      tool.agents.includes(agentName) && tool.modes.includes(modeName)
-    );
-  }
-  
-  /**
-   * Check if a tool is available for a specific agent and mode
-   * @param toolName The name of the tool
-   * @param agentName The name of the agent
-   * @param modeName The name of the mode
-   * @returns True if the tool is available, false otherwise
-   */
-  isToolAvailable(toolName: string, agentName: string, modeName: string): boolean {
-    const tool = this.getTool(toolName);
-    if (!tool) return false;
-    return tool.agents.includes(agentName) && tool.modes.includes(modeName);
-  }
-  
-  /**
-   * Get the appropriate modes for a tool
-   * @param toolName The name of the tool
-   * @param agentName The name of the agent
-   * @returns An array of mode names
-   */
-  getModesForTool(toolName: string, agentName: string): string[] {
-    const tool = this.getTool(toolName);
-    if (!tool) return [];
-    return tool.modes.filter(mode => tool.agents.includes(agentName));
-  }
-  
-  /**
-   * Validate and normalize parameters for a tool
-   * @param toolName The name of the tool
-   * @param params The parameters to validate
-   * @returns The normalized parameters
-   * @throws ToolValidationError if validation fails
-   */
-  validateAndNormalizeParams(toolName: string, params: Record<string, any>): Record<string, any> {
-    const tool = this.getTool(toolName);
-    if (!tool) {
-      throw new ToolValidationError(`Tool not found: ${toolName}`);
+
+  findToolMode(agentName: string, toolName: string): { modeName: string; tool: ToolDefinition } | undefined {
+    const agent = this.getAgent(agentName);
+    if (!agent) return undefined;
+
+    for (const mode of agent.availableModes) {
+      const tool = mode.availableTools.find(t => t.name === toolName);
+      if (tool) {
+        return { modeName: mode.name, tool };
+      }
     }
-    
+    return undefined;
+  }
+  
+  validateAndNormalizeParams(agentName: string, modeName: string, toolName: string, params: Record<string, any>): Record<string, any> {
+    const tool = this.getTool(agentName, modeName, toolName);
+    if (!tool) {
+      const agent = this.getAgent(agentName);
+      if (!agent) {
+        throw new ToolValidationError(`Agent not found: ${agentName}`);
+      }
+
+      const correctMode = this.findToolMode(agentName, toolName);
+      if (correctMode) {
+        throw new ToolValidationError(
+          `Configuration Error: Tool not found: ${toolName}. This tool is available in the '${correctMode.modeName}' mode, not '${modeName}' mode. Please update your request to use mode: '${correctMode.modeName}' instead.`
+        );
+      }
+      
+      const mode = this.getMode(agentName, modeName);
+      if (mode) {
+        const availableTools = mode.availableTools.map(t => t.name).join(', ');
+        throw new ToolValidationError(
+          `Configuration Error: Tool not found: ${toolName}. Available tools for ${agentName}/${modeName}: ${availableTools}`
+        );
+      } else {
+        const availableModes = agent.availableModes.map(m => m.name).join(', ');
+        throw new ToolValidationError(
+          `Configuration Error: Invalid mode '${modeName}' for agent '${agentName}'. Available modes: ${availableModes}`
+        );
+      }
+    }
+
+    // Parameter validation logic remains the same
     const result: Record<string, any> = {};
     const paramErrors: string[] = [];
     const missingRequired: string[] = [];
-    
-    // Track which parameters have been processed to detect unknown parameters
     const processedParams = new Set<string>();
     
-    // First pass: apply defaults and check for required parameters
+    // First pass: apply defaults and check required parameters
     for (const [paramName, paramDef] of Object.entries(tool.parameters)) {
-      // Apply default value if parameter is not provided
       if (params[paramName] === undefined) {
         if (paramDef.default !== undefined) {
           result[paramName] = paramDef.default;
         } else if (paramDef.required) {
-          // Check if any aliases are provided
           let foundAlias = false;
           if (paramDef.aliases) {
             for (const alias of paramDef.aliases) {
@@ -261,7 +222,6 @@ export class UnifiedToolRegistry implements IToolSchemaRegistry {
               }
             }
           }
-          
           if (!foundAlias) {
             missingRequired.push(paramName);
           }
@@ -272,24 +232,19 @@ export class UnifiedToolRegistry implements IToolSchemaRegistry {
       }
     }
     
-    // If there are missing required parameters, throw an error
     if (missingRequired.length > 0) {
       throw new ToolValidationError(
-        `Missing required parameters for tool '${toolName}': ${missingRequired.join(', ')}`
+        `Validation Error: Missing required parameters for tool '${toolName}': ${missingRequired.join(', ')}`
       );
     }
-    
+
     // Second pass: validate and transform parameters
     for (const [paramName, paramValue] of Object.entries(result)) {
       const paramDef = tool.parameters[paramName];
-      
       try {
-        // Apply transformation if needed
         if (paramDef.transform && paramValue !== undefined) {
           result[paramName] = paramDef.transform(paramValue);
         }
-        
-        // Validate type
         this.validateType(paramValue, paramDef.type, paramName);
         
         // Validate enum values
@@ -369,38 +324,28 @@ export class UnifiedToolRegistry implements IToolSchemaRegistry {
     // Check for unknown parameters
     for (const paramName of Object.keys(params)) {
       if (!processedParams.has(paramName)) {
-        // Check if this is an alias for any parameter
         let isAlias = false;
-        for (const [definedParam, paramDef] of Object.entries(tool.parameters)) {
+        for (const [, paramDef] of Object.entries(tool.parameters)) {
           if (paramDef.aliases && paramDef.aliases.includes(paramName)) {
             isAlias = true;
             break;
           }
         }
-        
         if (!isAlias) {
           paramErrors.push(`Unknown parameter: '${paramName}'`);
         }
       }
     }
     
-    // If there are validation errors, throw an error with all the issues
     if (paramErrors.length > 0) {
       throw new ToolValidationError(
-        `Validation failed for tool '${toolName}':\n${paramErrors.join('\n')}`
+        `Validation Error: Validation failed for tool '${toolName}': ${paramErrors.join('. ')}`
       );
     }
     
     return result;
   }
   
-  /**
-   * Validate that a value matches the expected type
-   * @param value The value to validate
-   * @param expectedType The expected type
-   * @param path The current path in the object (for error messages)
-   * @throws ToolValidationError if validation fails
-   */
   private validateType(value: any, expectedType: string, path: string): void {
     let valid = false;
     
@@ -430,81 +375,48 @@ export class UnifiedToolRegistry implements IToolSchemaRegistry {
     
     if (!valid) {
       throw new ToolValidationError(
-        `Invalid type for '${path}'. Expected ${expectedType}, got ${Array.isArray(value) ? 'array' : typeof value}`
+        `Invalid type for '${path}'. Expected ${expectedType}, got ${Array.isArray(value) ? 'array' : typeof value}. Please check the parameter type and format.`
       );
     }
   }
   
-  /**
-   * Convert a tool definition to a JSON schema
-   * @param toolName The name of the tool
-   * @returns The JSON schema for the tool
-   public getToolSchema(toolName: string): object {
-     const tool = this.getTool(toolName);
-     if (!tool) {
-       throw new ToolValidationError(`Tool not found: ${toolName}`);
-     }
-     
-     const properties: Record<string, any> = {};
-     const required: string[] = [];
-     
-     for (const [paramName, paramDef] of Object.entries(tool.parameters)) {
-       const property: Record<string, any> = {
-         type: paramDef.type,
-         description: paramDef.description
-       };
-       
-       if (paramDef.enum) {
-         property.enum = paramDef.enum;
-       }
-       
-       if (paramDef.minLength !== undefined) {
-         property.minLength = paramDef.minLength;
-       }
-       
-       if (paramDef.maxLength !== undefined) {
-         property.maxLength = paramDef.maxLength;
-       }
-       
-       if (paramDef.minimum !== undefined) {
-         property.minimum = paramDef.minimum;
-       }
-       
-       if (paramDef.maximum !== undefined) {
-         property.maximum = paramDef.maximum;
-       }
-       
-       if (paramDef.minItems !== undefined) {
-         property.minItems = paramDef.minItems;
-       }
-       
-       if (paramDef.maxItems !== undefined) {
-         property.maxItems = paramDef.maxItems;
-       }
-       
-       if (paramDef.pattern) {
-         property.pattern = paramDef.pattern;
-       }
-       
-       if (paramDef.items) {
-         property.items = {
-           type: paramDef.items.type
-         };
-         
-         if (paramDef.items.description) {
-           property.items.description = paramDef.items.description;
-         }
-       }
-       
-       if (paramDef.examples) {
-         property.examples = paramDef.examples;
-       }
-       
-       properties[paramName] = property;
+  getToolSchema(agentName: string, modeName: string, toolName: string): object {
+    const tool = this.getTool(agentName, modeName, toolName);
+    if (!tool) {
+      throw new ToolValidationError(
+        `Configuration Error: Tool '${toolName}' not found in mode '${modeName}' for agent '${agentName}'. Please check the tool name and mode.`
+      );
+    }
+    
+    const properties: Record<string, any> = {};
+    const required: string[] = [];
+    
+    for (const [paramName, paramDef] of Object.entries(tool.parameters)) {
+      const property: Record<string, any> = {
+        type: paramDef.type,
+        description: paramDef.description
+      };
       
-      if (paramDef.required) {
-        required.push(paramName);
+      if (paramDef.enum) property.enum = paramDef.enum;
+      if (paramDef.minLength !== undefined) property.minLength = paramDef.minLength;
+      if (paramDef.maxLength !== undefined) property.maxLength = paramDef.maxLength;
+      if (paramDef.minimum !== undefined) property.minimum = paramDef.minimum;
+      if (paramDef.maximum !== undefined) property.maximum = paramDef.maximum;
+      if (paramDef.minItems !== undefined) property.minItems = paramDef.minItems;
+      if (paramDef.maxItems !== undefined) property.maxItems = paramDef.maxItems;
+      if (paramDef.pattern) property.pattern = paramDef.pattern;
+      
+      if (paramDef.items) {
+        property.items = { type: paramDef.items.type };
+        if (paramDef.items.description) {
+          property.items.description = paramDef.items.description;
+        }
       }
+      
+      if (paramDef.examples) property.examples = paramDef.examples;
+      
+      properties[paramName] = property;
+      if (paramDef.required) required.push(paramName);
     }
     
     return {

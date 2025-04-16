@@ -1,4 +1,4 @@
-import { IAgent, ITool } from './interfaces.js';
+import { IAgent } from './interfaces.js';
 import { logger } from '../config.js';
 import { unifiedToolRegistry, ToolValidationError } from '../validation/unified-tool-registry.js';
 
@@ -55,13 +55,17 @@ export class AgentRegistry {
     
     // Create a high-level tool for each agent
     for (const agent of this.getAllAgents()) {
-      const modes = agent.getModes();
+      // Get agent definition from registry
+      const registryAgent = unifiedToolRegistry.getAgent(agent.name);
+      if (!registryAgent) continue;
+      
+      const modes = registryAgent.availableModes;
       const modeNames = modes.map(m => m.name).join(', ');
       
       // Build a list of available tools for each mode
       const modeToolsMap: Record<string, string[]> = {};
       for (const mode of modes) {
-        modeToolsMap[mode.name] = mode.getTools().map(t => t.name);
+        modeToolsMap[mode.name] = mode.availableTools.map(t => t.name);
       }
       
       // Create a more detailed schema with examples
@@ -89,7 +93,7 @@ export class AgentRegistry {
           examples: [
             {
               mode: modes[0]?.name || 'overview',
-              tool: modes[0]?.getTools()[0]?.name || 'example_tool',
+              tool: modes[0]?.availableTools[0]?.name || 'example_tool',
               params: {
                 // Example params would go here
                 keyword: "digital marketing",
@@ -112,8 +116,7 @@ export class AgentRegistry {
    * @param params The parameters for the tool
    * @returns A promise that resolves to the result of the tool execution
    * @throws AgentRegistryError if the agent, mode, or tool is not found
-   * @throws SchemaValidationError if parameters don't match the schema
-   * @throws ParameterMappingError if parameter mapping fails
+   * @throws ToolValidationError if parameters don't match the schema
    */
   async executeTool(agentName: string, modeName: string, toolName: string, params: any): Promise<any> {
     // Get the agent
@@ -123,29 +126,31 @@ export class AgentRegistry {
       throw new AgentRegistryError(`Agent not found: ${agentName}. Available agents: ${this.getAllAgents().map(a => a.name).join(', ')}`);
     }
     
-    // Get the mode
-    const mode = agent.getMode(modeName);
-    if (!mode) {
-      logger.error(`Mode not found: ${modeName}`);
-      throw new AgentRegistryError(`Mode not found: ${modeName}. Available modes for ${agentName}: ${agent.getModes().map(m => m.name).join(', ')}`);
+    // Check if the agent/mode/tool exists in the registry
+    const registryAgent = unifiedToolRegistry.getAgent(agentName);
+    if (!registryAgent) {
+      logger.error(`Agent not found in registry: ${agentName}`);
+      throw new AgentRegistryError(`Agent not found in registry: ${agentName}`);
     }
     
-    // Get the tool
-    const tool = mode.getTool(toolName);
-    if (!tool) {
-      logger.error(`Tool not found: ${toolName}`);
-      throw new AgentRegistryError(`Tool not found: ${toolName}. Available tools for ${agentName}/${modeName}: ${mode.getTools().map(t => t.name).join(', ')}`);
+    const registryMode = unifiedToolRegistry.getMode(agentName, modeName);
+    if (!registryMode) {
+      const availableModes = registryAgent.availableModes.map(m => m.name).join(', ');
+      logger.error(`Mode not found in registry: ${modeName}`);
+      throw new AgentRegistryError(`Mode not found: ${modeName}. Available modes for ${agentName}: ${availableModes}`);
+    }
+    
+    const registryTool = unifiedToolRegistry.getTool(agentName, modeName, toolName);
+    if (!registryTool) {
+      const availableTools = registryMode.availableTools.map(t => t.name).join(', ');
+      logger.error(`Tool not found in registry: ${toolName}`);
+      throw new AgentRegistryError(`Tool not found: ${toolName}. Available tools for ${agentName}/${modeName}: ${availableTools}`);
     }
     
     try {
-      // Check if the tool is available in the unified registry for this agent and mode
-      if (!unifiedToolRegistry.isToolAvailable(toolName, agentName, modeName)) {
-        logger.warn(`Tool ${toolName} is not registered in the unified registry for ${agentName}/${modeName}`);
-      }
-      
-      // Execute the tool
+      // Execute the tool through the agent's execute method
       logger.info(`Executing tool: ${agentName}/${modeName}/${toolName}`);
-      return await mode.executeTool(toolName, params);
+      return await agent.execute(modeName, toolName, params);
     } catch (error) {
       // Re-throw validation errors
       if (error instanceof ToolValidationError) {
@@ -164,7 +169,7 @@ export class AgentRegistry {
    * @param params The parameters for the tool (mode, tool, params)
    * @returns A promise that resolves to the result of the tool execution
    * @throws AgentRegistryError if the agent, mode, or tool is not found
-   * @throws SchemaValidationError if parameters don't match the schema
+   * @throws ToolValidationError if parameters don't match the schema
    */
   async executeHighLevelTool(toolName: string, params: any): Promise<any> {
     try {
@@ -177,35 +182,44 @@ export class AgentRegistry {
       // Extract the mode, tool, and params from the parameters
       const { mode, tool, params: toolParams } = params;
       
-      // Check if the tool exists in the unified registry
-      if (!unifiedToolRegistry.getTool(tool)) {
-        logger.error(`Tool not found in unified registry: ${tool}`);
-        throw new AgentRegistryError(`Tool not found: ${tool}. Please check the tool name and try again.`);
+      // Get the agent from the registry
+      const registryAgent = unifiedToolRegistry.getAgent(agentName);
+      if (!registryAgent) {
+        logger.error(`Agent not found in registry: ${agentName}`);
+        throw new AgentRegistryError(`Agent not found: ${agentName}. Please check the agent name and try again.`);
       }
       
-      // Check if the tool is available for this agent
-      const availableModes = unifiedToolRegistry.getModesForTool(tool, agentName);
-      if (availableModes.length === 0) {
-        logger.error(`Tool ${tool} is not available for agent ${agentName}`);
-        throw new AgentRegistryError(`Tool ${tool} is not available for agent ${agentName}`);
+      // Check if the mode exists for this agent
+      const registryMode = unifiedToolRegistry.getMode(agentName, mode);
+      if (!registryMode) {
+        const availableModes = registryAgent.availableModes.map(m => m.name).join(', ');
+        logger.error(`Mode not found for agent ${agentName}: ${mode}`);
+        throw new AgentRegistryError(`Mode not found: ${mode}. Available modes for ${agentName}: ${availableModes}`);
       }
       
-      // Check if the tool is being used in the correct mode
-      if (!availableModes.includes(mode)) {
-        const suggestedMode = availableModes[0];
-        logger.warn(`Tool '${tool}' was requested in '${mode}' mode, but it belongs to '${availableModes.join("' or '")}' mode`);
-        throw new AgentRegistryError(`Tool not found: ${tool}. This tool is available in the '${availableModes.join("' or '")}' mode, not '${mode}' mode. Please update your request to use mode: '${suggestedMode}' instead.`);
-      }
-      
-      // Validate and normalize the tool parameters
-      try {
-        // This will throw an error if validation fails
-        unifiedToolRegistry.validateAndNormalizeParams(tool, toolParams);
-      } catch (error) {
-        if (error instanceof ToolValidationError) {
-          throw new AgentRegistryError(`Parameter validation failed: ${error.message}`);
+      // Check if the tool exists for this mode
+      const registryTool = unifiedToolRegistry.getTool(agentName, mode, tool);
+      if (!registryTool) {
+        const availableTools = registryMode.availableTools.map(t => t.name).join(', ');
+        logger.error(`Tool not found for mode ${mode}: ${tool}`);
+        
+        // Check if the tool exists in other modes
+        let foundInOtherMode = false;
+        let correctMode = '';
+        
+        for (const m of registryAgent.availableModes) {
+          if (m.availableTools.some(t => t.name === tool)) {
+            foundInOtherMode = true;
+            correctMode = m.name;
+            break;
+          }
         }
-        throw error;
+        
+        if (foundInOtherMode) {
+          throw new AgentRegistryError(`Tool not found: ${tool}. This tool is available in the '${correctMode}' mode, not '${mode}' mode. Please update your request to use mode: '${correctMode}' instead.`);
+        } else {
+          throw new AgentRegistryError(`Tool not found: ${tool}. Available tools for ${agentName}/${mode}: ${availableTools}`);
+        }
       }
       
       // Execute the tool

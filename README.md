@@ -55,6 +55,13 @@ The Semrush MCP server provides tools for:
 | `PORT` | Server port | 3000 |
 | `LOG_LEVEL` | Logging level | info |
 
+## Documentation
+
+For detailed information on using the Semrush MCP tools, refer to the following documentation:
+
+- [Quick Reference Guide](./Semrush/QUICK-REFERENCE.md) - Examples of correct usage for each tool
+- [Troubleshooting Guide](./Semrush/TROUBLESHOOTING.md) - Solutions for common errors
+
 ## Available Tools
 
 | Tool Name | Description | Required Parameters |
@@ -80,6 +87,8 @@ The Semrush MCP server provides tools for:
 | `semrush_api_units_balance` | Check API units balance | check: true |
 
 Parameters in [brackets] are optional.
+
+> **Important Note**: Pay special attention to parameter types. Some tools require arrays (e.g., `domains`, `keywords`, `phrase`) while others require single strings (e.g., `domain`, `keyword`). See the [Quick Reference Guide](./Semrush/QUICK-REFERENCE.md) for examples.
 
 ## API Units Consumption
 
@@ -138,4 +147,4 @@ npm run dev
 
 ## License
 
-[MIT](./LICENSE) 
+[MIT](./LICENSE)

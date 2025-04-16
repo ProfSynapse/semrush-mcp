@@ -10,8 +10,8 @@ import {
 import chalk from 'chalk';
 import { SemrushApiError } from './semrush-api.js';
 import { AgentRegistry, AgentRegistryError } from './agents/agent-registry.js';
-import { DomainAgent } from './agents/domain-agent.js';
-import { KeywordAgent } from './agents/keyword-agent.js';
+import { DomainAgent } from './agents/domain/domain-agent.js';
+import { KeywordAgent } from './agents/keyword/keyword-agent.js';
 import { ToolValidationError } from './validation/unified-tool-registry.js';
 
 // Create the agent registry
