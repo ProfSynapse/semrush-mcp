@@ -9,17 +9,16 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import chalk from 'chalk';
 import { SemrushApiError } from './semrush-api.js';
-import { AgentRegistry, AgentRegistryError } from './agents/agent-registry.js';
 import { DomainAgent } from './agents/domain/domain-agent.js';
 import { KeywordAgent } from './agents/keyword/keyword-agent.js';
-import { ToolValidationError } from './validation/unified-tool-registry.js';
+import { ToolValidationError } from './types/tool-types.js';
+import { AgentType, DomainMode, KeywordMode } from './types/tool-types.js';
+import { executeTool, getAvailableModes, getAvailableTools } from './tools/tool-executor.js';
+import { typedToolRegistry } from './validation/typed-tool-registry.js';
 
-// Create the agent registry
-const agentRegistry = new AgentRegistry();
-
-// Register agents
-agentRegistry.registerAgent(new DomainAgent());
-agentRegistry.registerAgent(new KeywordAgent());
+// Create and register agents with the typed registry
+const domainAgent = new DomainAgent();
+const keywordAgent = new KeywordAgent();
 
 // Helper function to handle errors consistently
 const handleError = (error: unknown) => {
@@ -31,18 +30,6 @@ const handleError = (error: unknown) => {
         {
           type: 'text',
           text: `Validation Error: ${error.message}`,
-        },
-      ],
-    };
-  }
-  
-  if (error instanceof AgentRegistryError) {
-    return {
-      isError: true,
-      content: [
-        {
-          type: 'text',
-          text: `Configuration Error: ${error.message}`,
         },
       ],
     };
@@ -72,6 +59,84 @@ const handleError = (error: unknown) => {
   };
 };
 
+// Get available tools in MCP format
+function getAvailableToolsForMCP() {
+  const tools = [];
+  
+  // Create a high-level tool for Domain agent
+  const domainModes = getAvailableModes(AgentType.DOMAIN);
+  tools.push({
+    name: 'semrushDomain',
+    description: 'Access Semrush domain data - Use this tool to analyze domains and their metrics',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mode: {
+          type: 'string',
+          description: `Mode to use (${domainModes.join(', ')})`,
+          enum: domainModes
+        },
+        tool: {
+          type: 'string',
+          description: 'Tool to execute'
+        },
+        params: {
+          type: 'object',
+          description: 'Parameters for the tool'
+        }
+      },
+      required: ['mode', 'tool', 'params'],
+      examples: [
+        {
+          mode: DomainMode.OVERVIEW,
+          tool: 'domain_ranks',
+          params: {
+            target: 'example.com'
+          }
+        }
+      ]
+    }
+  });
+  
+  // Create a high-level tool for Keyword agent
+  const keywordModes = getAvailableModes(AgentType.KEYWORD);
+  tools.push({
+    name: 'semrushKeyword',
+    description: 'Access Semrush keyword data - Use this tool to research keywords and their metrics',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        mode: {
+          type: 'string',
+          description: `Mode to use (${keywordModes.join(', ')})`,
+          enum: keywordModes
+        },
+        tool: {
+          type: 'string',
+          description: 'Tool to execute'
+        },
+        params: {
+          type: 'object',
+          description: 'Parameters for the tool'
+        }
+      },
+      required: ['mode', 'tool', 'params'],
+      examples: [
+        {
+          mode: KeywordMode.OVERVIEW,
+          tool: 'keyword_overview',
+          params: {
+            keyword: 'digital marketing',
+            database: 'us'
+          }
+        }
+      ]
+    }
+  });
+  
+  return tools;
+}
+
 // Create the MCP server
 const server = new Server(
   {
@@ -89,7 +154,7 @@ const server = new Server(
 
 // Set up request handlers
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
-  tools: agentRegistry.getAvailableTools(),
+  tools: getAvailableToolsForMCP(),
 }));
 
 server.setRequestHandler(ListPromptsRequestSchema, async () => ({
@@ -109,13 +174,73 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   
   try {
     // Handle high-level tools (semrushDomain, semrushKeyword)
-    if (toolName.startsWith('semrush') && !toolName.includes('_')) {
-      const result = await agentRegistry.executeHighLevelTool(toolName, args);
+    if (toolName === 'semrushDomain') {
+      const { mode, tool, params } = args;
+      
+      // Validate mode
+      if (!Object.values(DomainMode).includes(mode)) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: `Invalid mode: ${mode}. Available modes: ${Object.values(DomainMode).join(', ')}`,
+            },
+          ],
+        };
+      }
+      
+      // Execute the tool
+      const result = await executeTool(
+        AgentType.DOMAIN,
+        mode as DomainMode,
+        tool,
+        params
+      );
       
       // Format the response for better readability
-      const formattedData = typeof result.data === 'string'
-        ? result.data
-        : JSON.stringify(result.data, null, 2);
+      const formattedData = typeof result === 'string'
+        ? result
+        : JSON.stringify(result, null, 2);
+      
+      return {
+        content: [
+          {
+            type: 'text',
+            text: formattedData,
+          },
+        ],
+      };
+    }
+    
+    if (toolName === 'semrushKeyword') {
+      const { mode, tool, params } = args;
+      
+      // Validate mode
+      if (!Object.values(KeywordMode).includes(mode)) {
+        return {
+          isError: true,
+          content: [
+            {
+              type: 'text',
+              text: `Invalid mode: ${mode}. Available modes: ${Object.values(KeywordMode).join(', ')}`,
+            },
+          ],
+        };
+      }
+      
+      // Execute the tool
+      const result = await executeTool(
+        AgentType.KEYWORD,
+        mode as KeywordMode,
+        tool,
+        params
+      );
+      
+      // Format the response for better readability
+      const formattedData = typeof result === 'string'
+        ? result
+        : JSON.stringify(result, null, 2);
       
       return {
         content: [
@@ -154,14 +279,28 @@ async function runServer() {
     await server.connect(transport);
 
     logger.info(chalk.green('Semrush MCP Server started'));
-    logger.info(chalk.blue(`Available agents: ${agentRegistry.getAllAgents().map(a => a.name).join(', ')}`));
+    logger.info(chalk.blue(`Available agents: domain, keyword`));
     
     // Log available tools
-    const tools = agentRegistry.getAvailableTools();
+    const tools = getAvailableToolsForMCP();
     logger.info(chalk.yellow(`Available tools: ${tools.map(t => t.name).join(', ')}`));
     
-    // Log validation and mapping capabilities
-    logger.info(chalk.cyan('Schema validation and parameter mapping enabled'));
+    // Log domain tools
+    const domainModes = getAvailableModes(AgentType.DOMAIN);
+    for (const mode of domainModes) {
+      const modeTools = getAvailableTools(AgentType.DOMAIN, mode as DomainMode);
+      logger.info(chalk.cyan(`Domain ${mode} tools: ${modeTools.join(', ')}`));
+    }
+    
+    // Log keyword tools
+    const keywordModes = getAvailableModes(AgentType.KEYWORD);
+    for (const mode of keywordModes) {
+      const modeTools = getAvailableTools(AgentType.KEYWORD, mode as KeywordMode);
+      logger.info(chalk.cyan(`Keyword ${mode} tools: ${modeTools.join(', ')}`));
+    }
+    
+    // Log validation capabilities
+    logger.info(chalk.cyan('Type-safe validation and parameter mapping enabled'));
   } catch (error) {
     logger.error(`Failed to start server: ${(error as Error).message}`);
     process.exit(1);

@@ -6,56 +6,61 @@
  */
 
 import { semrushApi } from '../../../semrush-api.js';
-import { createDomainParam, createDatabaseParam } from '../../../schemas/domain-schemas.js';
-import { SchemaType, createStringParam } from '../../../schemas/base-schema.js';
-import { ToolDefinition } from '../../../validation/unified-tool-registry.js';
+import { createParam, AgentType, DomainMode, TypedToolDefinition, ToolParameters, ValidatedParams } from '../../../types/tool-types.js';
+import { createDomainParam, createDatabaseParam } from '../../../validation/parameter-helpers.js';
+
+/**
+ * Domain ranks tool parameter interface
+ */
+interface DomainRanksParams extends ToolParameters {
+  domain: ReturnType<typeof createDomainParam>;
+  database: ReturnType<typeof createDatabaseParam>;
+  export_columns: ReturnType<typeof createParam.string>;
+}
 
 /**
  * Tool definition for domain_ranks
  */
-export const domain_ranks: ToolDefinition = {
+export const domain_ranks: TypedToolDefinition<AgentType.DOMAIN, DomainMode.OVERVIEW, DomainRanksParams> = {
+  agent: AgentType.DOMAIN,
+  mode: DomainMode.OVERVIEW,
   name: 'domain_ranks',
   description: 'Get overview data for a domain - provides comprehensive metrics including traffic, keywords, and rankings. USAGE: Pass a domain name without http/https prefix. EXAMPLE: Use "example.com" not "https://example.com".',
   parameters: {
     domain: createDomainParam(true),
     database: createDatabaseParam(false),
-    export_columns: createStringParam({
+    export_columns: createParam.string({
       description: 'Columns to export. This is optional and has a default value.',
       required: false,
-      options: {
-        default: 'Db,Dn,Rk,Or,Ot,Oc,Ad,At,Ac,Sh,Sv',
-        examples: ['Db,Dn,Rk,Or', 'Db,Dn,Rk,Or,Ot,Oc']
-      }
+      default: 'Db,Dn,Rk,Or,Ot,Oc,Ad,At,Ac,Sh,Sv',
+      examples: ['Db,Dn,Rk,Or', 'Db,Dn,Rk,Or,Ot,Oc']
     })
   },
   examples: [
     {
+      description: 'Get domain ranks for example.com',
       params: {
         domain: "example.com",
-        database: "us"
+        database: "us",
+        export_columns: 'Db,Dn,Rk,Or,Ot,Oc,Ad,At,Ac,Sh,Sv'
       }
     },
     {
+      description: 'Get domain ranks with custom columns',
       params: {
         domain: "ahrefs.com",
         database: "uk",
         export_columns: "Db,Dn,Rk,Or"
       }
     }
-  ]
-};
-
-/**
- * Execute the domain_ranks tool
- * @param params Tool parameters
- * @returns Tool execution result
- */
-export async function executeDomainRanks(params: Record<string, any>): Promise<any> {
-  const { domain, database = 'us', export_columns } = params;
-  
-  if (!domain) {
-    throw new Error('Domain is required for domain overview');
+  ],
+  execute: async (params: ValidatedParams<DomainRanksParams>): Promise<any> => {
+    const { domain, database = 'us', export_columns } = params;
+    
+    if (!domain) {
+      throw new Error('Domain is required for domain overview');
+    }
+    
+    return await semrushApi.getDomainOverview(domain, database);
   }
-  
-  return await semrushApi.getDomainOverview(domain, database);
-}
+};

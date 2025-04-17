@@ -4,7 +4,6 @@
  * This file contains schema definitions for keyword-related tools.
  */
 
-import { ParameterDefinition } from '../validation/unified-tool-registry.js';
 import { 
   SchemaType, 
   schemaTransformations, 

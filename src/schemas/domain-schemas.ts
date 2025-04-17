@@ -3,8 +3,6 @@
  * 
  * This file contains schema definitions for domain-related tools.
  */
-
-import { ParameterDefinition } from '../validation/unified-tool-registry.js';
 import { 
   SchemaType, 
   schemaTransformations, 

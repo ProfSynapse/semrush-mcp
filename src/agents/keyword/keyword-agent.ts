@@ -1,7 +1,8 @@
-import { BaseAgent } from '../base-agent.js';
-import { unifiedToolRegistry } from '../../validation/unified-tool-registry.js';
+import { AgentType, KeywordMode } from '../../types/tool-types.js';
+import { typedToolRegistry } from '../../validation/typed-tool-registry.js';
 import { overview, research, domain_keywords } from './modes/index.js';
 import { toolExecutors } from './tools/index.js';
+import { registerKeywordTool } from '../../tools/tool-builder.js';
 
 /**
  * Keyword Analysis Agent
@@ -12,32 +13,30 @@ import { toolExecutors } from './tools/index.js';
  * - research: Keyword discovery and expansion
  * - domain_keywords: Domain-specific keyword tools
  */
-export class KeywordAgent extends BaseAgent {
+export class KeywordAgent {
   constructor() {
-    super('keyword', 'Keyword analysis tools');
     this.setupRegistry();
   }
 
   /**
-   * Sets up the agent's tools and modes in the unified registry
+   * Sets up the agent's tools and modes in the typed registry
    */
   private setupRegistry(): void {
-    unifiedToolRegistry.registerAgent({
-      name: 'keyword',
-      description: 'Keyword analysis tools and capabilities',
-      availableModes: [
-        overview,
-        research,
-        domain_keywords
-      ]
-    });
+    // Register keyword tools with the typed registry
+    // This is now handled through the tool manifest and typed registry
+    
+    // Register any additional tools that aren't in the manifest
+    // For example, tools that require custom execution logic
+    
+    // The toolExecutors map is still used for backward compatibility
+    // In the future, all tools should be registered through the typed registry
   }
 
   /**
-   * Implementation of API handlers
-   * Uses the toolExecutors map to delegate to the appropriate tool execution function
+   * Execute a tool by name
+   * This is maintained for backward compatibility
    */
-  protected async executeToolAction(toolName: string, params: Record<string, any>): Promise<any> {
+  async execute(mode: string, toolName: string, params: Record<string, any>): Promise<any> {
     const executor = toolExecutors[toolName];
     
     if (!executor) {

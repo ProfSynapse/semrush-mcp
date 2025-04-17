@@ -4,16 +4,18 @@
  * Provides domain competition analysis.
  */
 
-import { ModeDefinition } from '../../../validation/unified-tool-registry.js';
+import { AgentType, DomainMode, TypedModeDefinition } from '../../../types/tool-types.js';
 import { domain_competitors } from '../tools/domain_competitors.js';
 
 /**
  * Mode definition for competitors
  */
-export const competitors: ModeDefinition = {
+export const competitors: TypedModeDefinition<AgentType.DOMAIN, DomainMode.COMPETITORS> = {
+  agent: AgentType.DOMAIN,
+  mode: DomainMode.COMPETITORS,
   name: 'competitors',
   description: 'Domain competition analysis',
-  availableTools: [
+  tools: {
     domain_competitors
-  ]
+  }
 };

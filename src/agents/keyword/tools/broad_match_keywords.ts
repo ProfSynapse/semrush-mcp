@@ -5,13 +5,24 @@
  */
 
 import { semrushApi } from '../../../semrush-api.js';
+import { createParam, AgentType, KeywordMode, TypedToolDefinition, ToolParameters, ValidatedParams } from '../../../types/tool-types.js';
 import { createKeywordParam, createDatabaseParam, createLimitParam } from '../../../validation/parameter-helpers.js';
-import { ToolDefinition } from '../../../validation/unified-tool-registry.js';
+
+/**
+ * Broad match keywords tool parameter interface
+ */
+interface BroadMatchKeywordsParams extends ToolParameters {
+  keyword: ReturnType<typeof createKeywordParam>;
+  database: ReturnType<typeof createDatabaseParam>;
+  limit: ReturnType<typeof createLimitParam>;
+}
 
 /**
  * Tool definition for broad_match_keywords
  */
-export const broad_match_keywords: ToolDefinition = {
+export const broad_match_keywords: TypedToolDefinition<AgentType.KEYWORD, KeywordMode.RESEARCH, BroadMatchKeywordsParams> = {
+  agent: AgentType.KEYWORD,
+  mode: KeywordMode.RESEARCH,
   name: 'broad_match_keywords',
   description: 'Get broad match and alternative queries. USAGE: Pass a single keyword string.',
   parameters: {
@@ -20,25 +31,20 @@ export const broad_match_keywords: ToolDefinition = {
     limit: createLimitParam(false)
   },
   examples: [{
+    description: 'Get broad match keywords',
     params: {
       keyword: "example keyword",
       database: "us",
       limit: 10
     }
-  }]
-};
-
-/**
- * Execute the broad_match_keywords tool
- * @param params Tool parameters
- * @returns Tool execution result
- */
-export async function executeBroadMatchKeywords(params: Record<string, any>): Promise<any> {
-  const { keyword, database = 'us', limit } = params;
-  
-  if (!keyword) {
-    throw new Error('Keyword is required');
+  }],
+  execute: async (params: ValidatedParams<BroadMatchKeywordsParams>): Promise<any> => {
+    const { keyword, database = 'us', limit } = params;
+    
+    if (!keyword) {
+      throw new Error('Keyword is required');
+    }
+    
+    return await semrushApi.getBroadMatchKeywords(keyword, database, limit);
   }
-  
-  return await semrushApi.getBroadMatchKeywords(keyword, database, limit);
-}
+};
