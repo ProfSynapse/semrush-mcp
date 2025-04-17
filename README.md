@@ -1,150 +1,198 @@
-# Semrush MCP Server
+# Semrush BCP Server
 
-A Model Context Protocol (MCP) server implementation that provides tools for accessing Semrush API data.
+A Model Context Protocol (MCP) server for Semrush API with Bounded Context Packs (BCP) architecture.
 
-## Features
+## What is BCP?
 
-The Semrush MCP server provides tools for:
+Bounded Context Packs (BCP) is an architecture pattern for MCP servers that organizes tools into self-contained bundles that map to a single bounded context. This approach solves the problem of "tool bloat" in MCP servers by:
 
-- **Domain Analytics**
-  - Domain overview information
-  - Organic and paid keywords analysis
-  - Competitor analysis
+1. **Organized Structure**: Tools are organized into logical bounded contexts
+2. **Clear Boundaries**: Each BCP has a clear responsibility and domain
+3. **Maintainable Codebase**: Easy to add new operations to existing BCPs
 
-- **Keyword Analytics**
-  - Keyword overview data
-  - Related keyword discovery
+## Architecture
 
-- **Backlink Analysis**
-  - Backlink data
-  - Referring domains analysis
-
-- **Traffic Analytics**
-  - Traffic summary for domains
-  - Traffic sources analysis
-  - (Note: Requires .Trends API subscription)
-
-## Setup
-
-1. Clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Create a `.env` file with your Semrush API key:
-   ```
-   SEMRUSH_API_KEY=your_api_key_here
-   ```
-4. Build the project:
-   ```bash
-   npm run build
-   ```
-5. Start the server:
-   ```bash
-   npm run start
-   ```
-
-## Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `SEMRUSH_API_KEY` | Your Semrush API key | (Required) |
-| `API_CACHE_TTL_SECONDS` | Time to cache API responses | 300 |
-| `API_RATE_LIMIT_PER_SECOND` | Maximum API requests per second | 10 |
-| `NODE_ENV` | Environment (development/production) | development |
-| `PORT` | Server port | 3000 |
-| `LOG_LEVEL` | Logging level | info |
-
-## Documentation
-
-For detailed information on using the Semrush MCP tools, refer to the following documentation:
-
-- [Quick Reference Guide](./Semrush/QUICK-REFERENCE.md) - Examples of correct usage for each tool
-- [Troubleshooting Guide](./Semrush/TROUBLESHOOTING.md) - Solutions for common errors
+```
+semrush-bcp/
+├── src/
+│   ├── core/
+│   │   ├── types.ts           # Shared type definitions
+│   │   ├── server.ts          # MCP server implementation
+│   │   └── api-client.ts      # Semrush API client
+│   │
+│   ├── bcps/
+│   │   ├── Domain/
+│   │   │   ├── ranks.tool.ts
+│   │   │   ├── competitors.tool.ts
+│   │   │   └── index.ts       # Domain BCP barrel
+│   │   │
+│   │   ├── Keyword/
+│   │   │   ├── overview.tool.ts
+│   │   │   ├── related.tool.ts
+│   │   │   ├── difficulty.tool.ts
+│   │   │   └── index.ts       # Keyword BCP barrel
+│   │   │
+│   │   └── Backlinks/
+│   │       ├── list.tool.ts
+│   │       ├── refdomains.tool.ts
+│   │       └── index.ts       # Backlinks BCP barrel
+│   │
+│   └── index.ts               # Entry point
+```
 
 ## Available Tools
 
-| Tool Name | Description | Required Parameters |
-|-----------|-------------|---------------------|
-| `semrush_domain_overview` | Get domain overview data | domain, [database] |
-| `semrush_domain_organic_keywords` | Get organic keywords for domain | domain, [database], [limit] |
-| `semrush_domain_paid_keywords` | Get paid keywords for domain | domain, [database], [limit] |
-| `semrush_competitors` | Get organic search competitors | domain, [database], [limit] |
-| `semrush_backlinks` | Get backlinks for a domain/URL | target, [limit] |
-| `semrush_backlinks_domains` | Get referring domains | target, [limit] |
-| `semrush_keyword_overview` | Get keyword overview data | keyword, [database] |
-| `semrush_related_keywords` | Find related keywords | keyword, [database], [limit] |
-| `semrush_keyword_overview_single_db` | Get detailed keyword data for specific database | keyword, database |
-| `semrush_batch_keyword_overview` | Analyze up to 100 keywords at once | keywords, database |
-| `semrush_keyword_organic_results` | Get domains ranking in organic results | keyword, database, [limit] |
-| `semrush_keyword_paid_results` | Get domains in paid search results | keyword, database, [limit] |
-| `semrush_keyword_ads_history` | Get 12-month history of domains bidding on keyword | keyword, database, [limit] |
-| `semrush_broad_match_keywords` | Get broad matches and alternate search queries | keyword, database, [limit] |
-| `semrush_phrase_questions` | Get question-based keywords | keyword, database, [limit] |
-| `semrush_keyword_difficulty` | Get difficulty index for ranking in top 10 | keywords, database |
-| `semrush_traffic_summary` | Get traffic summary data for domains | domains, [country] |
-| `semrush_traffic_sources` | Get traffic sources data | domain, [country] |
-| `semrush_api_units_balance` | Check API units balance | check: true |
+### Domain Tool
 
-Parameters in [brackets] are optional.
+The `semrushDomain` tool provides domain analysis capabilities:
 
-> **Important Note**: Pay special attention to parameter types. Some tools require arrays (e.g., `domains`, `keywords`, `phrase`) while others require single strings (e.g., `domain`, `keyword`). See the [Quick Reference Guide](./Semrush/QUICK-REFERENCE.md) for examples.
+```javascript
+// Get domain ranks
+semrushDomain({
+  operation: "ranks",
+  domain: "example.com",
+  database: "us"
+})
 
-## API Units Consumption
+// Get domain competitors
+semrushDomain({
+  operation: "competitors",
+  domain: "example.com",
+  limit: 20
+})
+```
 
-API requests to Semrush consume API units from your account. Different types of requests have different costs. You can check your API units balance using the `semrush_api_units_balance` tool.
+### Keyword Tool
 
-### Keyword Reports API Units Consumption
+The `semrushKeyword` tool provides keyword research capabilities:
 
-| Tool | API Units per Line |
-|------|-------------------|
-| `semrush_keyword_overview` | 10 |
-| `semrush_keyword_overview_single_db` | 10 |
-| `semrush_batch_keyword_overview` | 10 |
-| `semrush_keyword_organic_results` | 10 |
-| `semrush_keyword_paid_results` | 20 |
-| `semrush_related_keywords` | 40 |
-| `semrush_keyword_ads_history` | 100 |
-| `semrush_broad_match_keywords` | 20 |
-| `semrush_phrase_questions` | 40 |
-| `semrush_keyword_difficulty` | 50 |
+```javascript
+// Get keyword overview
+semrushKeyword({
+  operation: "overview",
+  keyword: "digital marketing",
+  database: "us"
+})
 
-## Adding to Cursor or Claude
+// Get related keywords
+semrushKeyword({
+  operation: "related",
+  keyword: "digital marketing",
+  database: "us",
+  limit: 50
+})
 
-To add this MCP server to Cursor or Claude:
+// Get keyword difficulty
+semrushKeyword({
+  operation: "difficulty",
+  keyword: "digital marketing",
+  database: "us"
+})
+```
 
-### Cursor
+### Backlinks Tool
 
-1. In Cursor, go to Settings > MCP Servers
-2. Click "Add Server"
-3. Configure the server with the following settings:
-   - **Name**: `Semrush MCP` (or any name you prefer)
-   - **Type**: `command`
-   - **Command**: `node`
-   - **Arguments**: `/path/to/semrush-mcp/dist/index.js` (replace with your actual path)
-   - **Environment Variables**:
-     - `SEMRUSH_API_KEY`: Your Semrush API key
-     - Other optional variables as needed
-4. Click "Save"
+The `semrushBacklinks` tool provides backlink analysis capabilities:
 
-### Claude Desktop
+```javascript
+// Get backlinks list
+semrushBacklinks({
+  operation: "list",
+  target: "example.com",
+  limit: 100
+})
 
-Configure the MCP server in the Claude Desktop settings following the documentation.
+// Get referring domains
+semrushBacklinks({
+  operation: "refdomains",
+  target: "example.com",
+  limit: 50
+})
+```
+
+## Usage
+
+### Claude Desktop Configuration
+
+```json
+{
+  "mcpServers": {
+    "semrush": {
+      "command": "node",
+      "args": ["./dist/index.js"]
+    }
+  }
+}
+```
+
+### Example Conversation
+
+```
+User: I want to analyze example.com
+
+Claude: I can help you analyze example.com using the Semrush API.
+[Calls semrushDomain with operation="ranks", domain="example.com"]
+Here are the domain metrics for example.com...
+
+User: What are some related keywords to "digital marketing"?
+
+Claude: Let me find related keywords for "digital marketing".
+[Calls semrushKeyword with operation="related", keyword="digital marketing"]
+Here are some related keywords for "digital marketing"...
+```
 
 ## Development
 
-To run the server in development mode:
+### Prerequisites
+
+- Node.js 18+
+- npm or yarn
+
+### Setup
 
 ```bash
-npm run dev
+# Install dependencies
+npm install
+
+# Build the project
+npm run build
+
+# Start the server
+npm start
 ```
 
-## Security Notes
+### Adding a New Operation
 
-- Never share your Semrush API key publicly
-- API key provides access to your API units balance
-- Exposing credentials can lead to unauthorized API usage and unexpected charges
+1. Create a new tool file in the appropriate BCP directory
+2. Update the main tool's schema and handler to include the new operation
+3. Update the API client if needed
+
+Example tool file:
+
+```typescript
+import { ToolDefinition } from '../../core/types.js';
+import { createSemrushApiClient } from '../../core/api-client.js';
+
+export const tool: ToolDefinition = {
+  name: 'example',
+  description: 'Example tool',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      param: {
+        type: 'string',
+        description: 'Example parameter'
+      }
+    },
+    required: ['param']
+  },
+  handler: async (params) => {
+    const apiClient = createSemrushApiClient('api-key');
+    return await apiClient.someMethod(params.param);
+  }
+};
+```
 
 ## License
 
-[MIT](./LICENSE)
+MIT
