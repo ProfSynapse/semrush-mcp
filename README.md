@@ -119,7 +119,13 @@ semrushBacklinks({
   "mcpServers": {
     "semrush": {
       "command": "node",
-      "args": ["./dist/index.js"]
+      "args": ["c:\\path\\to\\dist\\index.js"],
+      "env": {
+        "SEMRUSH_API_KEY": "INSERT_KEY"
+      },
+      "disabled": false,
+      "autoApprove": []
+      }
     }
   }
 }
