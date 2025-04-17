@@ -1,4 +1,4 @@
-# Semrush BCP Server
+# Semrush MCP Server
 
 A Model Context Protocol (MCP) server for Semrush API with Bounded Context Packs (BCP) architecture.
 
